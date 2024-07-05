@@ -3,7 +3,7 @@ fine-tuning LLM for image captioning
 
 ## build llava dataset hf format
 ```python
-pyton src_data.main.py
+pyton src_data/main.py
 ```
 The script will prompt to select the:
     
