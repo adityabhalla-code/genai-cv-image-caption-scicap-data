@@ -52,16 +52,16 @@ if __name__ == "__main__":
     # hyperparameters sent by the client are passed as command-line arguments to the script.
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--train_batch_size", type=int, default=32)
-    parser.add_argument("--eval_batch_size", type=int, default=64)
+    # parser.add_argument("--eval_batch_size", type=int, default=64)
     parser.add_argument("--warmup_steps", type=int, default=500)
     parser.add_argument("--model_id", type=str)
     parser.add_argument("--learning_rate", type=str, default=5e-5)
     parser.add_argument("--fp16", type=bool, default=True)
 
     # Push to Hub Parameters
-    parser.add_argument("--push_to_hub", type=bool, default=True)
+    # parser.add_argument("--push_to_hub", type=bool, default=True)
     parser.add_argument("--hub_model_id", type=str, default=None)
-    parser.add_argument("--hub_strategy", type=str, default=None)
+    # parser.add_argument("--hub_strategy", type=str, default=None)
     parser.add_argument("--hub_token", type=str, default=None)
 
     # Data, model, and output directories
@@ -74,16 +74,16 @@ if __name__ == "__main__":
 
     args, _ = parser.parse_known_args()
     
-        # make sure we have required parameters to push
-    if args.push_to_hub:
-        if args.hub_strategy is None:
-            raise ValueError("--hub_strategy is required when pushing to Hub")
-        if args.hub_token is None:
-            raise ValueError("--hub_token is required when pushing to Hub")
+    # make sure we have required parameters to push
+#     if args.push_to_hub:
+#         if args.hub_strategy is None:
+#             raise ValueError("--hub_strategy is required when pushing to Hub")
+#         if args.hub_token is None:
+#             raise ValueError("--hub_token is required when pushing to Hub")
 
-    # sets hub id if not provided
-    if args.hub_model_id is None:
-        args.hub_model_id = args.model_id.replace("/", "--")
+#     # sets hub id if not provided
+#     if args.hub_model_id is None:
+#         args.hub_model_id = args.model_id.replace("/", "--")
     
     logger = logging.getLogger(__name__)
     
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         overwrite_output_dir=True if get_last_checkpoint(args.output_dir) is not None else False,
         report_to="tensorboard",
         per_device_train_batch_size=args.train_batch_size,
-        per_device_eval_batch_size =args.eval_batch_size,
+        # per_device_eval_batch_size =args.eval_batch_size,
         gradient_accumulation_steps=1,
         logging_steps=5,
         num_train_epochs=args.epochs,
@@ -136,18 +136,18 @@ if __name__ == "__main__":
         bf16=False,
         
         # new args 
-        evaluation_strategy="epoch",
+        # evaluation_strategy="epoch",
         save_strategy="epoch",
         save_total_limit=2,
         logging_dir=f"{args.output_data_dir}/logs",
         learning_rate=float(args.learning_rate),
-        load_best_model_at_end=True,
+        # load_best_model_at_end=True,
         
         # push to hub parameters
         # push_to_hub=args.push_to_hub,
-        hub_strategy=args.hub_strategy,
-        hub_model_id=args.hub_model_id,
-        hub_token=args.hub_token,
+        # hub_strategy=args.hub_strategy,
+        # hub_model_id=args.hub_model_id,
+        # hub_token=args.hub_token,
     )
 
 
@@ -176,9 +176,16 @@ if __name__ == "__main__":
     # save best model, metrics and create model card
     # trainer.create_model_card(model_name=args.hub_model_id)
     # trainer.push_to_hub()
+    print(f"TRAINER HUB MODEL ID --{trainer.hub_model_id}")
+    if trainer.hub_model_id != args.hub_model_id:
+        trainer.hub_model_id = args.hub_model_id
     trainer.push_to_hub(token=args.hub_token  )
-    tokenizer.push_to_hub(args.hub_model_id)
-    processor.push_to_hub(args.hub_model_id)
+    print("TRAINER PUSHED TO HUB--1")
+#     tokenizer.push_to_hub(args.hub_model_id,token=args.hub_token)
+#     print("TOKENIZER PUSHED TO HUB--1")
+    
+#     processor.push_to_hub(args.hub_model_id)
+#     print("PROCESSOR PUSHED TO HUB--1",token=args.hub_token)
 
     # Saves the model to s3 uses os.environ["SM_MODEL_DIR"] to make sure checkpointing works
     trainer.save_model(os.environ["SM_MODEL_DIR"])
