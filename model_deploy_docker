@@ -1,0 +1,16 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Copy requirements file to the container
+COPY requirements_model_deploy.txt /app/requirements_model_deploy.txt
+
+# Install dependencies
+RUN pip install --no-cache-dir -r /app/requirements_model_deploy.txt
+
+# Copy the FastAPI application code to the container
+COPY src/inference_fastapi.py /app/inference_fastapi.py
+COPY src/run_fastapi.py /app/run_fastapi.py
+
+# Run the FastAPI application
+CMD ["python", "inference.py"]
