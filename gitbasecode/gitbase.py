@@ -1,24 +1,26 @@
-from transformers import AutoProcessor,TrainingArguments, Trainer, PreTrainedModel, AutoModelForCausalLM
+from transformers import AutoProcessor,TrainingArguments, Trainer, PreTrainedModel, AutoModelForCausalLM, AutoTokenizer
 from datasets import Dataset, DatasetDict
 from evaluate import load
 import torch
 from PIL import Image
 from transformers.tokenization_utils_base import BatchEncoding
 from utils import get_image_mean, get_image_stddev
+from peft import LoraConfig, TaskType, get_peft_model
 
 CHECKPOINT = "microsoft/git-base"
 
 def load_model_pretrained() -> AutoProcessor:
     processor = AutoProcessor.from_pretrained(CHECKPOINT)
-    processor
+    return processor
 
-def transforms(batch: Dataset, processor: AutoProcessor) -> BatchEncoding:
+def transforms(batch: Dataset):
+    processor =  load_model_pretrained()
     imgProcessor = processor.image_processor
     txtTokenizer = processor.tokenizer
     txtTokenizer.padding_side = "left"
     txtTokenizer.truncation_side = "left"
 
-    imgProcessor.do_normalize(True)
+    imgProcessor.do_normalize
     
     imagesarr = []
     captionsarr = []
@@ -35,11 +37,11 @@ def transforms(batch: Dataset, processor: AutoProcessor) -> BatchEncoding:
 
     inputs = processor(images=imagesarr, text=captionsarr, return_tensors="pt",padding=True, truncation=True)
     inputs.update({"labels": inputs["input_ids"]})
-    #print(inputs.pop("labels"))
-    return inputs
+    print("transform completed")
+    #print(inputs.pop("labels"))    
 
 
-def compute_metrics(eval_pred, processor: AutoProcessor):
+def compute_metrics(eval_pred, processor: AutoProcessor, compute_result):
     wer = load("wer")
     logits, labels = eval_pred
     predicted = logits.argmax(-1)
@@ -48,6 +50,22 @@ def compute_metrics(eval_pred, processor: AutoProcessor):
     wer_score = wer.compute(predictions=decoded_predictions, references=decoded_labels)
     return {"wer_score": wer_score}
 
+def modifyModel(tokens:str):
+    model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
+    # Load the tokenizer associated with the model
+    tokenizer = AutoTokenizer.from_pretrained(CHECKPOINT)
+
+    # Tokenize the input text
+    inputs = tokenizer(tokens, return_tensors="pt")
+
+    # Get the input IDs
+    input_ids = inputs["input_ids"]
+    target_modules = ["q_proj", "v_proj"]  # Example target modules, adjust as needed
+    peft_config = LoraConfig(task_type=TaskType.FEATURE_EXTRACTION, inference_mode=False, r=8,
+                         lora_alpha=32, lora_dropout=0.1, target_modules=target_modules)
+    model = get_peft_model(model, peft_config)
+    model.print_trainable_parameters()
+    
 def defineTrainingArgs() -> TrainingArguments:
     model_name = CHECKPOINT.split("/")[1]
 
@@ -68,18 +86,31 @@ def defineTrainingArgs() -> TrainingArguments:
         remove_unused_columns=False,
         push_to_hub=False,
         label_names=["labels"],
-        load_best_model_at_end=True
-)
+        load_best_model_at_end=True,
+        batch_eval_metrics=True
+    )
+    print(training_args)
+    return training_args
 
-def dotrain(train_ds:Dataset, eval_ds: Dataset):
+
+def dotrain(dataset_and_tokens_train, dataset_and_tokens_val):
     model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
-    train_ds.set_transform(transforms())
-    eval_ds.set_transform(transforms())
+    #dataset_and_tokens_train[0].set_transform(transforms(dataset_and_tokens_train[0], load_model_pretrained()))
+    train_ds = dataset_and_tokens_train[0]
+    train_ds.set_transform(transforms)
+    print(f"type of train ds:{type(train_ds)}")
+    val_ds = dataset_and_tokens_val[0]
+    val_ds.set_transform(transforms)
+    print(f"type of val ds:{type(val_ds)}")
+    
+    tokens = dataset_and_tokens_train[1]
+    modifyModel(tokens)
+    args = defineTrainingArgs()
     trainer = Trainer(
         model=model,
-        args=defineTrainingArgs,
+        args=args,
         train_dataset=train_ds,
-        eval_dataset=eval_ds,
+        eval_dataset=val_ds,
         compute_metrics=compute_metrics
     )
     trainer.train()    
@@ -92,4 +123,4 @@ def generateCaption(image: Image, processor: AutoProcessor, model: PreTrainedMod
     generated_ids = model.generate(pixel_values=pixel_values, max_length=50)
     generated_caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
     print(generated_caption)
-    generated_caption
+    return generated_caption

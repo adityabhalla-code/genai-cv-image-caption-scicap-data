@@ -10,7 +10,7 @@ import os
 import pandas as pd
 #from sklearn.pipeline import Pipeline
 from datasets import Dataset, DatasetDict
-from utils import read_json
+from utils import read_json, create_scicap_gitbase_dataset
 import pyarrow as pa
 
 # Project Directories
@@ -22,22 +22,47 @@ DATASET_DIR = PACKAGE_ROOT / "datasets"
 TRAINED_MODEL_DIR = PACKAGE_ROOT / "trained_models"
 
 
-def load_dataset(caption_folder_path: str, image_folder_path: str) -> pd.DataFrame:
+def load_dataset(caption_folder_path: str, image_folder_path: str) -> []:
+    #DATA_DIRECTORY = '../data'
+    #SCICAP_META_DATA = f'{DATA_DIRECTORY}/captions_meta_data_19_may_24.xlsx'
+    #scicap_meta_data = pd.read_excel(SCICAP_META_DATA)
+    #print(f"Total metadata records:{scicap_meta_data.shape[0]}")
+    #SCICAP_DATA_EXPERIMENT_LIST = ['Caption-No-More-Than-100-Tokens','First-Sentence','Single-Sentence-Caption']
+    #CATEGORY = ['No-Subfig','Yes-Subfig']
+    #selected_experiment = SCICAP_DATA_EXPERIMENT_LIST[args.experiment]
+    #selected_category = CATEGORY[args.category]
+    #n_train_images = args.n_train_images
+    #n_test_images = args.n_test_images
+
+    #create_scicap_gitbase_dataset(scicap_meta_data, 'Caption-No-More-Than-100-Tokens','No-Subfig',100, 50 )
+    print("load dataset")
     dict_list = []
+    tokens_from_captions = ''
+    dataset_and_tokens = []
     allcaptionspath = DATASET_DIR / caption_folder_path
     file_names = os.listdir(allcaptionspath)
     print(len(file_names))
     for file_name in file_names:
         try:
             json_file = read_json(f'{allcaptionspath}/{file_name}')
+            #print(type(json_file))
             items = json_file.items()
-            #print(items)
-            image_path = DATASET_DIR / image_folder_path / items.mapping.get('figure-ID')
-            caption = items.mapping.get('2-normalized').items().mapping.get('2-2-advanced-euqation-bracket').items().mapping.get('caption')
+            new_items = dict(items)
+            
+            image_path = DATASET_DIR / image_folder_path / new_items.get('figure-ID')
+            normalized_items = new_items.get('2-normalized').items()
+            normalized_items_dict = dict(normalized_items)
+            sec_normalized_items = normalized_items_dict.get('2-2-advanced-euqation-bracket').items()
+            sec_normalized_items_dict = dict(sec_normalized_items)
+            caption = sec_normalized_items_dict.get('caption')
+            #print(caption)
+            tokens = sec_normalized_items_dict.get('tokens')
+            if isinstance(tokens, list):
+                tokens_from_captions = tokens_from_captions.join(" ").join(tokens)  # Join list of tokens into a single strin
             
             if(os.path.exists(image_path)):
-                table = pa.table({"path": [image_path]})
-                row_dict = {'FileName': table, 'Caption': caption}
+                #print(type(image_path))
+                row_dict = {'FileName': str(image_path), 'Caption': caption}
                 dict_list.append(row_dict)
 
         except Exception as e:
@@ -51,20 +76,39 @@ def load_dataset(caption_folder_path: str, image_folder_path: str) -> pd.DataFra
     }
 
     dataset = Dataset.from_dict(data_dict)
+    dataset_and_tokens.append(dataset)
+    dataset_and_tokens.append(tokens_from_captions)
+    return dataset_and_tokens
+    
+     
+
+def load_train() -> []:
+    print("load train")
+    dataset_and_tokens = load_dataset("SciCap-Caption-All/train", "SciCap-No-Subfig-Img/train")
     dataset_dict = DatasetDict({
-        'train': dataset
-    })
+            'train': dataset_and_tokens[0]
+        })
     train_ds = dataset_dict['train']
-    train_ds
+    print(type(train_ds))
+    return dataset_and_tokens
 
-def load_train() -> pd.DataFrame:
-    return load_dataset("SciCap-Caption-All/train", "SciCap-No-Subfig-Img/train")
+def load_val() -> []:
+    dataset_and_tokens = load_dataset("SciCap-Caption-All/val", "SciCap-No-Subfig-Img/val")
+    dataset_dict = DatasetDict({
+            'val': dataset_and_tokens[0]
+        })
+    val_ds = dataset_dict['val']
+    print(type(val_ds))
+    return dataset_and_tokens
 
-def load_val() -> pd.DataFrame:
-    return load_dataset("SciCap-Caption-All/val", "SciCap-No-Subfig-Img/val")
-
-def load_test() -> pd.DataFrame:
-    return load_dataset("SciCap-Caption-All/test", "SciCap-No-Subfig-Img/test")
+def load_test() -> []:
+    dataset_and_tokens = load_dataset("SciCap-Caption-All/test", "SciCap-No-Subfig-Img/test")
+    dataset_dict = DatasetDict({
+            'test': dataset_and_tokens[0]
+        })
+    test_ds = dataset_dict['test']
+    print(type(test_ds))
+    return dataset_and_tokens
    
 #def save_pipeline(*, pipeline_to_persist: Pipeline) -> None:
     """Persist the pipeline.
@@ -101,3 +145,4 @@ def load_test() -> pd.DataFrame:
    # for model_file in TRAINED_MODEL_DIR.iterdir():
    #     if model_file.name not in do_not_delete:
    #         model_file.unlink()
+   
