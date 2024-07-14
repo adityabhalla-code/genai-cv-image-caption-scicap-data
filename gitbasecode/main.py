@@ -10,4 +10,8 @@ if __name__ == '__main__':
     
     print(type(dataset_and_tokens_val))
     dotrain(dataset_and_tokens_train, dataset_and_tokens_val)
+    url = '/content/drive/MyDrive/Colab Notebooks/SciCap-No-Subfig-Img/test/2011.07019v1-Figure3-1.png'
+    image1 = Image.open(url)
+    generateCaptionPretrained(image1)
+    generateCaption(image1)
     

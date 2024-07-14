@@ -13,7 +13,8 @@ def load_model_pretrained() -> AutoProcessor:
     processor = AutoProcessor.from_pretrained(CHECKPOINT)
     return processor
 
-def transforms(batch: Dataset):
+def transform_batch(batch: Dataset):
+    print("transform batch")
     processor =  load_model_pretrained()
     imgProcessor = processor.image_processor
     txtTokenizer = processor.tokenizer
@@ -21,25 +22,39 @@ def transforms(batch: Dataset):
     txtTokenizer.truncation_side = "left"
 
     imgProcessor.do_normalize
-    
+
     imagesarr = []
     captionsarr = []
-    for file_name, caption in zip(batch["FileName"], batch["Caption"]):  # Iterate over file names and captions
+    tokens_from_captions = ""
+    for file_name, caption, tokens in zip(batch["FileName"], batch["Caption"], batch["tokens"]):  # Iterate over file names and captions
         # Assuming file_name is a valid path or a file-like object
         image = Image.open(file_name)
         imagesarr.append(image)
         captionsarr.append(caption)
-    images = imagesarr[0]
-    captions = captionsarr[0]
+        tokens_from_captions = tokens_from_captions.join(" ").join(tokens)  # Join list of tokens into a single strin
+
     mu_rgb = get_image_mean(batch)
     std_rgb = get_image_stddev(batch)
     imgProcessor.preprocess(images=imagesarr,image_mean=mu_rgb, image_std=std_rgb)
+    # Tokenize the input text
+    txtTokenizer(tokens_from_captions, return_tensors="pt")
 
     inputs = processor(images=imagesarr, text=captionsarr, return_tensors="pt",padding=True, truncation=True)
     inputs.update({"labels": inputs["input_ids"]})
-    print("transform completed")
-    #print(inputs.pop("labels"))    
 
+    # Get the input IDs
+    #input_ids = inputs["input_ids"]
+    print("transform completed")
+    #print(inputs.pop("labels"))
+    processor.save_pretrained(f"{model_name}-scicap")
+    return inputs
+
+def transforms(batch: Dataset):
+    outputs = transform_batch(batch)
+    for key, value in outputs.items():
+      if value is None:
+        print(f"vlue returned null for key {key}")
+    return outputs  
 
 def compute_metrics(eval_pred, processor: AutoProcessor, compute_result):
     wer = load("wer")
@@ -50,22 +65,16 @@ def compute_metrics(eval_pred, processor: AutoProcessor, compute_result):
     wer_score = wer.compute(predictions=decoded_predictions, references=decoded_labels)
     return {"wer_score": wer_score}
 
-def modifyModel(tokens:str):
+def modifyModel():
     model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
-    # Load the tokenizer associated with the model
-    tokenizer = AutoTokenizer.from_pretrained(CHECKPOINT)
-
-    # Tokenize the input text
-    inputs = tokenizer(tokens, return_tensors="pt")
-
-    # Get the input IDs
-    input_ids = inputs["input_ids"]
+     
     target_modules = ["q_proj", "v_proj"]  # Example target modules, adjust as needed
     peft_config = LoraConfig(task_type=TaskType.FEATURE_EXTRACTION, inference_mode=False, r=8,
                          lora_alpha=32, lora_dropout=0.1, target_modules=target_modules)
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
-    
+    return model    
+
 def defineTrainingArgs() -> TrainingArguments:
     model_name = CHECKPOINT.split("/")[1]
 
@@ -102,9 +111,8 @@ def dotrain(dataset_and_tokens_train, dataset_and_tokens_val):
     val_ds = dataset_and_tokens_val[0]
     val_ds.set_transform(transforms)
     print(f"type of val ds:{type(val_ds)}")
-    
-    tokens = dataset_and_tokens_train[1]
-    modifyModel(tokens)
+
+    modifyModel()
     args = defineTrainingArgs()
     trainer = Trainer(
         model=model,
@@ -113,14 +121,34 @@ def dotrain(dataset_and_tokens_train, dataset_and_tokens_val):
         eval_dataset=val_ds,
         compute_metrics=compute_metrics
     )
-    trainer.train()    
+    trainer.train()
+    trainer.save_model(f"{model_name}-scicap")        
     
-    
-def generateCaption(image: Image, processor: AutoProcessor, model: PreTrainedModel) -> str:
+def generateCaptionPretrained(image: Image) -> str:
+    model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
+    processor = AutoProcessor.from_pretrained(CHECKPOINT) 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
     inputs = processor(images=image, return_tensors="pt").to(device)
     pixel_values = inputs.pixel_values
     generated_ids = model.generate(pixel_values=pixel_values, max_length=50)
     generated_caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
     print(generated_caption)
     return generated_caption
+
+def generateCaption(image: Image) -> str:
+    model = AutoModelForCausalLM.from_pretrained("/content/git-base-trained-scicap/", _from_auto=True)
+    processor = AutoProcessor.from_pretrained("/content/git-base-trained-scicap") 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
+    inputs = processor(images=image, return_tensors="pt").to(device)
+    pixel_values = inputs.pixel_values
+    generated_ids = model.generate(pixel_values=pixel_values, max_length=50)
+    generated_caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    plotimage(image)
+    print(generated_caption)
+    return generated_caption
+
+def plotimage(image: Image):
+    plt.imshow(image)
+    plt.show()

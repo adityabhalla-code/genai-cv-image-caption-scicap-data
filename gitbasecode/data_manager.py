@@ -39,7 +39,7 @@ def load_dataset(caption_folder_path: str, image_folder_path: str) -> []:
     dict_list = []
     tokens_from_captions = ''
     dataset_and_tokens = []
-    allcaptionspath = DATASET_DIR / caption_folder_path
+    allcaptionspath = f"{DATASET_DIR}/{caption_folder_path}"
     file_names = os.listdir(allcaptionspath)
     print(len(file_names))
     for file_name in file_names:
@@ -48,8 +48,8 @@ def load_dataset(caption_folder_path: str, image_folder_path: str) -> []:
             #print(type(json_file))
             items = json_file.items()
             new_items = dict(items)
-            
-            image_path = DATASET_DIR / image_folder_path / new_items.get('figure-ID')
+
+            image_path = f"{DATASET_DIR}/{image_folder_path}/{new_items.get('figure-ID')}"
             normalized_items = new_items.get('2-normalized').items()
             normalized_items_dict = dict(normalized_items)
             sec_normalized_items = normalized_items_dict.get('2-2-advanced-euqation-bracket').items()
@@ -59,10 +59,10 @@ def load_dataset(caption_folder_path: str, image_folder_path: str) -> []:
             tokens = sec_normalized_items_dict.get('tokens')
             if isinstance(tokens, list):
                 tokens_from_captions = tokens_from_captions.join(" ").join(tokens)  # Join list of tokens into a single strin
-            
+
             if(os.path.exists(image_path)):
                 #print(type(image_path))
-                row_dict = {'FileName': str(image_path), 'Caption': caption}
+                row_dict = {'FileName': str(image_path), 'Caption': caption, 'tokens':tokens_from_captions}
                 dict_list.append(row_dict)
 
         except Exception as e:
@@ -72,8 +72,11 @@ def load_dataset(caption_folder_path: str, image_folder_path: str) -> []:
     df = pd.DataFrame(dict_list)
     data_dict = {
         'FileName': df['FileName'].tolist(),
-        'Caption':  df['Caption'].tolist()
+        'Caption':  df['Caption'].tolist(),
+        'tokens': df['tokens'].tolist()
     }
+    print(len(data_dict))
+    print(data_dict)
 
     dataset = Dataset.from_dict(data_dict)
     dataset_and_tokens.append(dataset)
