@@ -1,16 +1,60 @@
-FROM python:3.10-slim
+FROM nvidia/cuda:11.6.2-base-ubuntu20.04
+
+# Set non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies including curl
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add deadsnakes PPA to get Python 3.10
+RUN add-apt-repository ppa:deadsnakes/ppa
+
+# Install Python 3.10 and pip
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-distutils \
+    python3.10-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pip for Python 3.10
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+    python3.10 get-pip.py && \
+    rm get-pip.py
+
+# Set Python 3.10 as the default python
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+
+# Verify Python installation
+RUN python --version
+RUN pip --version
 
 WORKDIR /app
 
-# Copy requirements file to the container
-COPY requirements_model_deploy.txt /app/requirements_model_deploy.txt
+ARG HF_TOKEN
+ENV HF_TOKEN=${HF_TOKEN}
+ENV PYTHONPATH=/app:$PYTHONPATH
 
-# Install dependencies
+# Copy requirements file
+COPY requirements_model_deploy.txt /app/
+RUN ls -la /app > /app/ls_output1.txt && cat /app/ls_output1.txt
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r /app/requirements_model_deploy.txt
 
-# Copy the FastAPI application code to the container
-COPY src/inference_fastapi.py /app/inference_fastapi.py
-COPY src/run_fastapi.py /app/run_fastapi.py
+# Copy your application code
+COPY src/ /app/
+RUN ls -la /app > /app/ls_output2.txt && cat /app/ls_output2.txt
+RUN pwd > /app/debug_info.txt && \
+    python --version >> /app/debug_info.txt && \
+    which python >> /app/debug_info.txt && \
+    cat /app/debug_info.txt
 
-# Run the FastAPI application
-CMD ["python", "inference.py"]
+RUN chmod +x /app/run_fastapi.py
+
+# Command to run your application
+# CMD ["python", "/app/run_fastapi.py"]
+CMD ["uvicorn", "inference_fastapi:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
