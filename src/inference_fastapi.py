@@ -17,19 +17,22 @@ logger = logging.getLogger(__name__)
 
 # FastAPI app initialization
 app = FastAPI(title='SCICAP', description='scientific image captioning', version='0.0.1')
+# for local 
+# cache_dir = '/teamspace/studios/this_studio/.cache/huggingface/hub'
+# for container 
+cache_dir = os.getenv('CACHE_DIR', os.path.expanduser('~/.cache/huggingface/hub'))
+hf_token = os.getenv('HF_TOKEN')
 
-cache_dir = '/teamspace/studios/this_studio/.cache/huggingace/hub'
 model_id = "bhalladitya/llva-1.5-7b-scicap"
-
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 quantization_config = BitsAndBytesConfig(
     load_in_4bit=True,
 )
-model = LlavaForConditionalGeneration.from_pretrained(model_id,                                                      quantization_config=quantization_config,
+model = LlavaForConditionalGeneration.from_pretrained(model_id,quantization_config=quantization_config,
                                                       torch_dtype=torch.float16,
-                                                     cache_dir = cache_dir)
+                                                      cache_dir = cache_dir)
 
 
 tokenizer = AutoTokenizer.from_pretrained(model_id,cache_dir=cache_dir)
@@ -39,6 +42,7 @@ processor.tokenizer = tokenizer
 
 class PredictionRequest(BaseModel):
     prompt: str
+    
 
 
 @app.get("/")
