@@ -8,6 +8,7 @@ from utils import get_image_mean, get_image_stddev
 from peft import LoraConfig, TaskType, get_peft_model
 
 CHECKPOINT = "microsoft/git-base"
+model_name = "git-base-trained"
 
 def load_model_pretrained() -> AutoProcessor:
     processor = AutoProcessor.from_pretrained(CHECKPOINT)
