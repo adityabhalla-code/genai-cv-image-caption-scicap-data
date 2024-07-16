@@ -125,3 +125,9 @@ if __name__=="__main__":
     }
     
     huggingface_estimator.fit(data)
+    print("Waiting for SageMaker training job to start...")
+    sagemaker_client = boto3.client('sagemaker')
+    training_job_name = huggingface_estimator.latest_training_job.name
+    waiter = sagemaker_client.get_waiter('training_job_in_progress')
+    waiter.wait(TrainingJobName=training_job_name)
+    print("SageMaker training job has started.")

@@ -30,13 +30,25 @@ jobs:
 
     - name: Extract version from Git tags
       id: get_version
-      run: echo "VERSION=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+      run: |
+        TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        COMMITHASH=$(git rev-parse --short HEAD)
+        VERSION="$TAG-$COMMITHASH"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
 
+#    - name: Build and push Docker image
+#      run: |
+#        VERSION=${{ env.VERSION }}
+#        docker build -t scicap-training:$VERSION -f Dockerfile.training .
+#        docker tag scicap-training:$VERSION 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:$VERSION
+#        docker tag scicap-training:$VERSION 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
+#        docker push 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:$VERSION
+#        docker push 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
     - name: Build and push Docker image
       run: |
         VERSION=${{ env.VERSION }}
-        docker build -t scicap-training:$VERSION -f Dockerfile.training .
-        docker tag scicap-training:$VERSION 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
+        docker build -t scicap-training:latest -f Dockerfile.training .
+        docker tag scicap-training:latest 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
         docker push 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
 
     - name: Run Docker container in detached mode
@@ -45,3 +57,5 @@ jobs:
                      -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
                      -e HUGGINGFACE_TOKEN=${{ secrets.HUGGINGFACE_TOKEN }} \
                      644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
+
+
