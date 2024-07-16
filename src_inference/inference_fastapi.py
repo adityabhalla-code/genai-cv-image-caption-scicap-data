@@ -54,6 +54,7 @@ async def read_root():
 async def predict(prompt: str = Form(...), file: UploadFile = File(...)):
     try:
         logger.info("Received prediction request")
+        
         image = Image.open(io.BytesIO(await file.read())).convert("RGB")
         logger.info(f"User prompt: {prompt}")
 
@@ -69,6 +70,11 @@ async def predict(prompt: str = Form(...), file: UploadFile = File(...)):
         
         prediction = processor.decode(output[0][2:], skip_special_tokens=True)
         assistant_response = prediction.split("ASSISTANT:")[-1].strip()
+        # get the original caption for the image 
+        # function to get a original caption 
+        # def get_original_caption(_)
+        # calculat the belu score and add it to output dict 
+        
         output = {"caption": assistant_response,
             "User Prompt": prompt}
         logger.info(f"caption: {assistant_response}")

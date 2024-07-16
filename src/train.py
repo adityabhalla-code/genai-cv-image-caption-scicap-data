@@ -1,15 +1,17 @@
+import os
+import sys
 import torch
+import random
+import logging
+import argparse
 from transformers import AutoTokenizer, AutoProcessor, TrainingArguments,LlavaForConditionalGeneration, BitsAndBytesConfig
 from trl import SFTTrainer
 from peft import LoraConfig
 from datasets import load_from_disk
 from transformers.trainer_utils import get_last_checkpoint
-import random
-import logging
-import sys
-import argparse
-import os
-import torch
+from datasets import Dataset ,DatasetDict
+
+
 
 
 
@@ -49,7 +51,7 @@ class LLavaDataCollator:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    # hyperparameters sent by the client are passed as command-line arguments to the script.
+    # hyperparameters 
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--train_batch_size", type=int, default=32)
     # parser.add_argument("--eval_batch_size", type=int, default=64)
@@ -57,47 +59,39 @@ if __name__ == "__main__":
     parser.add_argument("--model_id", type=str)
     parser.add_argument("--learning_rate", type=str, default=5e-5)
     parser.add_argument("--fp16", type=bool, default=True)
+    parser.add_argument("--bf16", type=bool, default=False)
+    parser.add_argument("--gradient_checkpointing", type=bool, default=True)
+    parser.add_argument("--logging_steps", type=int, default=5)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
+    
+    
 
     # Push to Hub Parameters
-    # parser.add_argument("--push_to_hub", type=bool, default=True)
     parser.add_argument("--hub_model_id", type=str, default=None)
-    # parser.add_argument("--hub_strategy", type=str, default=None)
     parser.add_argument("--hub_token", type=str, default=None)
+
+    # Lora specific
+    parser.add_argument("--lora_matrix_rank", type=int, default=64)
+    parser.add_argument("--lora_alpha", type=int, default=16)
+    parser.add_argument("--lora_target_modules", type=str, default="all-linear")
+    
 
     # Data, model, and output directories
     parser.add_argument("--output_data_dir", type=str, default=os.environ["SM_OUTPUT_DATA_DIR"])
     parser.add_argument("--output_dir", type=str, default=os.environ["SM_MODEL_DIR"])
     parser.add_argument("--n_gpus", type=str, default=os.environ["SM_NUM_GPUS"])
-    # parser.add_argument("--training_dir", type=str, default=os.environ["SM_CHANNEL_TRAIN"])
-    # parser.add_argument("--test_dir", type=str, default=os.environ["SM_CHANNEL_TEST"])
     parser.add_argument("--dataset_dir", type=str, default=os.environ["SM_CHANNEL_DATASET"])
     
     
 
     args, _ = parser.parse_known_args()
-    
-    # make sure we have required parameters to push
-#     if args.push_to_hub:
-#         if args.hub_strategy is None:
-#             raise ValueError("--hub_strategy is required when pushing to Hub")
-#         if args.hub_token is None:
-#             raise ValueError("--hub_token is required when pushing to Hub")
-
-#     # sets hub id if not provided
-#     if args.hub_model_id is None:
-#         args.hub_model_id = args.model_id.replace("/", "--")
-    
     logger = logging.getLogger(__name__)
-    
     logging.basicConfig(
     level=logging.getLevelName("INFO"),
     handlers=[logging.StreamHandler(sys.stdout)],
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",)
 
     # load datasets
-    # train_dataset = load_from_disk(args.training_dir)
-    # test_dataset = load_from_disk(args.test_dir)
-    from datasets import Dataset ,DatasetDict
     dataset = DatasetDict.load_from_disk(args.dataset_dir)
     train_dataset = dataset['train']
     test_dataset = dataset['test']
@@ -134,13 +128,13 @@ if __name__ == "__main__":
         report_to="tensorboard",
         per_device_train_batch_size=args.train_batch_size,
         # per_device_eval_batch_size =args.eval_batch_size,
-        gradient_accumulation_steps=1,
-        logging_steps=5,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        logging_steps=args.logging_steps,
         num_train_epochs=args.epochs,
-        gradient_checkpointing=True,
+        gradient_checkpointing=args.gradient_checkpointing,
         remove_unused_columns=False,
         fp16=args.fp16,
-        bf16=False,
+        bf16=args.bf16,
         
         # new args 
         # evaluation_strategy="epoch",
@@ -149,7 +143,6 @@ if __name__ == "__main__":
         logging_dir=f"{args.output_data_dir}/logs",
         learning_rate=float(args.learning_rate),
         # load_best_model_at_end=True,
-        
         # push to hub parameters
         # push_to_hub=args.push_to_hub,
         # hub_strategy=args.hub_strategy,
@@ -159,9 +152,9 @@ if __name__ == "__main__":
 
 
     lora_config = LoraConfig(
-        r=64,
-        lora_alpha=16,
-        target_modules="all-linear"
+        r=args.lora_matrix_rank,
+        lora_alpha=args.lora_alpha,
+        target_modules=args.lora_target_modules
     )
 
 
@@ -178,22 +171,13 @@ if __name__ == "__main__":
     )
     
     trainer.train()
-    # push the model to hugging face
-    
-    # save best model, metrics and create model card
-    # trainer.create_model_card(model_name=args.hub_model_id)
-    # trainer.push_to_hub()
     print(f"TRAINER HUB MODEL ID --{trainer.hub_model_id}")
     if trainer.hub_model_id != args.hub_model_id:
         trainer.hub_model_id = args.hub_model_id
     trainer.push_to_hub(token=args.hub_token  )
     print("TRAINER PUSHED TO HUB--1")
-#     tokenizer.push_to_hub(args.hub_model_id,token=args.hub_token)
-#     print("TOKENIZER PUSHED TO HUB--1")
-    
-#     processor.push_to_hub(args.hub_model_id)
-#     print("PROCESSOR PUSHED TO HUB--1",token=args.hub_token)
-
-    # Saves the model to s3 uses os.environ["SM_MODEL_DIR"] to make sure checkpointing works
-    trainer.save_model(os.environ["SM_MODEL_DIR"])
+    tokenizer.push_to_hub(args.hub_model_id,token=args.hub_token)
+    print("TOKENIZER PUSHED TO HUB--1")    
+    processor.push_to_hub(args.hub_model_id,token=args.hub_token)
+    print("PROCESSOR PUSHED TO HUB--1")
     

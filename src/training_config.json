@@ -1,0 +1,20 @@
+{
+  "data_version": "data_v7",
+  "epochs": 1,
+  "train_batch_size": 2,
+  "learning_rate": 1.4e-5,
+  "lora_matrix_rank": 64,
+  "lora_alpha": 16,
+  "lora_target_modules": "all-linear",
+  "model": "base",
+  "fp16": true,
+  "bf16": false,
+  "gradient_checkpointing": true,
+  "logging_steps": 5,
+  "gradient_accumulation_steps": 1,
+  "sagemaker_role": "arn:aws:iam::644383320443:role/service-role/SageMaker-ExecutionRole-20240702T135136",
+  "sagemaker_bucket": "scicap-project",
+  "s3_prefix": "llava-training",
+  "custom_training_image_uri": "644383320443.dkr.ecr.eu-north-1.amazonaws.com/huggingface-pytorch-training-extended:2.1.0-transformers4.39-gpu-py38-cu113-ubuntu20.04",
+  "training_job_name": "1-llava-training"
+}
