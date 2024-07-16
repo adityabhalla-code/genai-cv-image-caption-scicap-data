@@ -68,8 +68,10 @@ if __name__ == "__main__":
     parser.add_argument("--output_data_dir", type=str, default=os.environ["SM_OUTPUT_DATA_DIR"])
     parser.add_argument("--output_dir", type=str, default=os.environ["SM_MODEL_DIR"])
     parser.add_argument("--n_gpus", type=str, default=os.environ["SM_NUM_GPUS"])
-    parser.add_argument("--training_dir", type=str, default=os.environ["SM_CHANNEL_TRAIN"])
-    parser.add_argument("--test_dir", type=str, default=os.environ["SM_CHANNEL_TEST"])
+    # parser.add_argument("--training_dir", type=str, default=os.environ["SM_CHANNEL_TRAIN"])
+    # parser.add_argument("--test_dir", type=str, default=os.environ["SM_CHANNEL_TEST"])
+    parser.add_argument("--dataset_dir", type=str, default=os.environ["SM_CHANNEL_DATASET"])
+    
     
 
     args, _ = parser.parse_known_args()
@@ -93,8 +95,13 @@ if __name__ == "__main__":
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",)
 
     # load datasets
-    train_dataset = load_from_disk(args.training_dir)
-    test_dataset = load_from_disk(args.test_dir)
+    # train_dataset = load_from_disk(args.training_dir)
+    # test_dataset = load_from_disk(args.test_dir)
+    from datasets import Dataset ,DatasetDict
+    dataset = DatasetDict.load_from_disk(args.dataset_dir)
+    train_dataset = dataset['train']
+    test_dataset = dataset['test']
+    
 
     logger.info(f" loaded train_dataset length is: {len(train_dataset)}")
     logger.info(f" loaded test_dataset length is: {len(test_dataset)}")
