@@ -51,9 +51,9 @@ jobs:
         docker tag scicap-training:latest 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
         docker push 644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
 
-    - name: Run Docker container in detached mode
+    - name: Run Docker container
       run: |
-        docker run -d -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+        docker run -rm -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
                      -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
                      -e HUGGINGFACE_TOKEN=${{ secrets.HUGGINGFACE_TOKEN }} \
                      644383320443.dkr.ecr.eu-north-1.amazonaws.com/scicap-training:latest
