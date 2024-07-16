@@ -1,9 +1,10 @@
-name: Deploy to EC2
+name: deploy_to_ec2
 
-# on:
+on:
 #   push:
 #     branches:
 #       - main
+  workflow_dispatch:
 
 jobs:
   build:
