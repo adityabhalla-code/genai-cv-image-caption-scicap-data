@@ -1,3 +1,4 @@
+from datasets import load_dataset
 import subprocess
 import sagemaker
 import argparse
@@ -12,6 +13,12 @@ if not hf_token:
     raise ValueError("HUGGINGFACE_TOKEN environment variable not set")
 
 
+def pull_data_from_huggingface(data_version):
+    try:
+        dataset = load_dataset("bhalladitya/scicap-single-sentence-caption-no-subfig", revision=data_version)
+        return dataset
+    except Exception as e:
+        print(f"Exception occured in hf data pull -- {e}")
 
 
 def configure_aws_cli():
@@ -49,6 +56,19 @@ def upload_directory_to_s3(local_directory, s3_bucket, s3_prefix):
             s3_client.upload_file(local_path, s3_bucket, s3_path)
             print(f"Uploaded {local_path} to s3://{s3_bucket}/{s3_path}")
 
+def wait_for_training_job_to_start(sagemaker_client, training_job_name):
+    print("Waiting for SageMaker training job to start...")
+    while True:
+        response = sagemaker_client.describe_training_job(TrainingJobName=training_job_name)
+        status = response['TrainingJobStatus']
+        print(f"Training job status: {status}")
+        if status == 'InProgress':
+            print("SageMaker training job has started.")
+            break
+        elif status == 'Failed':
+            raise Exception("SageMaker training job failed to start.")
+        time.sleep(30)
+
 if __name__=="__main__":
 
     with open('src/training_config.json', 'r') as f:
@@ -77,15 +97,18 @@ if __name__=="__main__":
     print(f"SELECTED MODEL TO TRAIN:{model}")
     
     configure_aws_cli()
-    pull_data_from_dvc(data_version)
+    # pull_data_from_dvc(data_version) # issue in putting .dvc files in container
+    dataset = pull_data_from_huggingface(data_version)
+    s3_dataset_path = f"s3://{Bucket}/{s3_prefix}/dataset/"
+    dataset.save_to_disk(s3_dataset_path)
     
     
     model_id = 'llava-hf/llava-1.5-7b-hf' if model == 'base' else 'bhalladitya/llva-1.5-7b-scicap'
     print(f"BASE MODEL ID:{model_id}")
-    dataset_path = f'{s3_prefix}'
-    upload_directory_to_s3(f"/app/data/{data_version}/", Bucket, dataset_path)
-    
-    
+    # dataset_path = f'{s3_prefix}'
+    # upload_directory_to_s3(f"/app/data/{data_version}/", Bucket, dataset_path)
+
+
     hyperparameters={'epochs': epochs,                                    
                      'train_batch_size': train_batch_size,                      
                      # 'eval_batch_size': 8,                         
@@ -117,17 +140,23 @@ if __name__=="__main__":
         image_uri=custom_image_uri,
     )
 
-    
-    s3_dataset_path = f"s3://{Bucket}/{s3_prefix}/dataset/"
-    
+
+
+
     data = {
         'dataset': s3_dataset_path
     }
     
-    huggingface_estimator.fit(data)
+    huggingface_estimator.fit(data,wait=False)
     print("Waiting for SageMaker training job to start...")
     sagemaker_client = boto3.client('sagemaker')
     training_job_name = huggingface_estimator.latest_training_job.name
-    waiter = sagemaker_client.get_waiter('training_job_in_progress')
-    waiter.wait(TrainingJobName=training_job_name)
-    print("SageMaker training job has started.")
+    wait_for_training_job_to_start(sagemaker_client,training_job_name)
+
+
+
+
+    # training_job_name = huggingface_estimator.latest_training_job.name
+    # waiter = sagemaker_client.get_waiter('training_job_in_progress')
+    # waiter.wait(TrainingJobName=training_job_name)
+    # print("SageMaker training job has started.")
