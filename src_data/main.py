@@ -1,10 +1,12 @@
 from utils import (find_fig_path , read_json , build_messages , save_messages , write_json ,
                             prepare_scicap_image_caption_list , get_data_version)
-from huggingface_hub import HfApi, HfFolder, login
+from huggingface_hub import HfApi, HfFolder, login , Repository
 from  llava_hf_data import HfDataset
 from datasets import DatasetDict
 import pandas as pd
+import subprocess
 import argparse
+import shutil
 import os
 
 DATA_DIRECTORY = 'data'
@@ -21,11 +23,65 @@ print(f'The next version name is: {data_version}')
 os.makedirs(f"{DATA_DIRECTORY}/{data_version}",exist_ok=True)
 
 
+def get_next_version(repo_dir: str) -> str:
+    # List the tags in the local repository
+    result = subprocess.run(["git", "tag"], cwd=repo_dir, capture_output=True, text=True)
+    tags = result.stdout.split()
+
+    if not tags:
+        return "v1.0.0"
+
+    latest_tag = sorted(tags, key=lambda x: list(map(int, x[1:].split('.'))))[-1]
+    major, minor, patch = map(int, latest_tag[1:].split('.'))
+    next_version = f"v{major}.{minor}.{patch + 1}"
+    return next_version
 
 
 def push_to_huggingface(dataset, repo_name):
     HfFolder.save_token(DATASET_WRITE_HF_TOKEN)
     dataset.push_to_hub(repo_name,token=DATASET_WRITE_HF_TOKEN)
+    os.system("git lfs install")
+    # Initialize the repository
+    repo_url = f"https://huggingface.co/datasets/{repo_name}"
+    repo_dir = f"./{repo_name}"
+    # Remove the existing directory if it exists
+    if os.path.exists(repo_dir):
+        shutil.rmtree(repo_dir)
+
+    if not os.path.exists(repo_dir):
+        os.makedirs(repo_dir)
+    clone_url = repo_url.replace("https://", f"https://user:{DATASET_WRITE_HF_TOKEN}@")
+    try:
+        subprocess.run(["git", "clone", clone_url, repo_dir], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error cloning repository: {e}")
+        return
+    # Ensure the repo_dir exists
+    if not os.path.exists(repo_dir):
+        print(f"Directory {repo_dir} does not exist after cloning.")
+        return
+    # Change directory to the cloned repository
+    next_version = get_next_version(repo_dir)
+    print(f"Next version tag: {next_version}")
+    os.chdir(repo_dir)
+    # Tag the new version
+    # Tag the new version
+    try:
+        subprocess.run(["git", "tag", next_version], check=True)
+        print(f"Created tag: {next_version}")
+        subprocess.run(["git", "push", "origin", next_version], check=True)
+        print(f"Pushed tag: {next_version}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error tagging or pushing version: {e}")
+    finally:
+        # Verify the tag was pushed
+        result = subprocess.run(["git", "ls-remote", "--tags", "origin"], capture_output=True, text=True)
+        if next_version in result.stdout:
+            print(f"Verified tag {next_version} is pushed to origin.")
+        else:
+            print(f"Tag {next_version} was not found in remote repository.")
+        # Change back to the original directory
+        os.chdir("..")
 
 
 
