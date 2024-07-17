@@ -1,7 +1,7 @@
 {
   "data_version": "v1.0.1",
-  "epochs": 1,
-  "train_batch_size": 2,
+  "epochs": 10,
+  "train_batch_size": 5,
   "learning_rate": 1.4e-5,
   "lora_matrix_rank": 64,
   "lora_alpha": 16,

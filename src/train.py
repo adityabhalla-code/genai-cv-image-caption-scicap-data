@@ -133,8 +133,8 @@ if __name__ == "__main__":
         num_train_epochs=args.epochs,
         gradient_checkpointing=args.gradient_checkpointing,
         remove_unused_columns=False,
-        fp16=args.fp16,
-        bf16=args.bf16,
+        fp16=True,
+        bf16=False,
         
         # new args 
         # evaluation_strategy="epoch",
