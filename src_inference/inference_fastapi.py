@@ -1,6 +1,7 @@
 from transformers import AutoTokenizer, AutoProcessor, TrainingArguments, LlavaForConditionalGeneration, BitsAndBytesConfig
 from peft import LoraConfig
 from transformers import AutoProcessor , LlavaProcessor
+from utils import calculate_bleu , get_original_caption , Logging
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -11,9 +12,11 @@ import os
 import logging
 
 # Set up logging
-log_file_path = 'scicap_logs.log'
-logging.basicConfig(level=logging.INFO, handlers=[logging.FileHandler(log_file_path), logging.StreamHandler()])
-logger = logging.getLogger(__name__)
+log_dir = 'logs'
+os.makedirs(log_dir,exist_ok = True)
+log_file_path = 'logs/scicap_logs.log'
+
+log = Logging(log_file_path)
 
 # FastAPI app initialization
 app = FastAPI(title='SCICAP', description='scientific image captioning', version='0.0.1')
@@ -40,9 +43,7 @@ processor = AutoProcessor.from_pretrained(model_id,cache_dir=cache_dir)
 processor.tokenizer = tokenizer
 
 
-class PredictionRequest(BaseModel):
-    prompt: str
-    
+
 
 
 @app.get("/")
@@ -53,10 +54,11 @@ async def read_root():
 @app.post("/predict")
 async def predict(prompt: str = Form(...), file: UploadFile = File(...)):
     try:
-        logger.info("Received prediction request")
-        
+        log.logger.info("Received prediction request")
+        image_id = file.filename
+        log.logger.info(f"Received image_id:{image_id}")
         image = Image.open(io.BytesIO(await file.read())).convert("RGB")
-        logger.info(f"User prompt: {prompt}")
+        log.logger.info(f"User prompt: {prompt}")
 
         print("---"*10)
         print(f"USER prompt:{prompt}")
@@ -70,17 +72,20 @@ async def predict(prompt: str = Form(...), file: UploadFile = File(...)):
         
         prediction = processor.decode(output[0][2:], skip_special_tokens=True)
         assistant_response = prediction.split("ASSISTANT:")[-1].strip()
-        # get the original caption for the image 
-        # function to get a original caption 
-        # def get_original_caption(_)
-        # calculat the belu score and add it to output dict 
+
+        original_caption = get_original_caption(image_id)
+        belu_score = calculate_bleu(original_caption,assistant_response)
+        output = {
+                "caption": assistant_response,
+                "user_prompt": prompt,
+                "original_caption":original_caption,
+                "belu_score":belu_score
+        }
         
-        output = {"caption": assistant_response,
-            "User Prompt": prompt}
-        logger.info(f"caption: {assistant_response}")
-        logger.info(f"Prediction successful")
+        log.logger.info(f"caption: {assistant_response}")
+        log.logger.info(f"Prediction successful")
         return JSONResponse(content=output)
     except Exception as e:
-        logger.error(f"Prediction error: {str(e)}", exc_info=True)
+        log.logger.error(f"Prediction error: {str(e)}", exc_info=True)
         return JSONResponse(content={"error": str(e)}, status_code=500)
 

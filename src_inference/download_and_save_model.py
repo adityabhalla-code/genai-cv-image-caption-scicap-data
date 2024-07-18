@@ -11,7 +11,7 @@ if __name__=="__main__":
     model = LlavaForConditionalGeneration.from_pretrained(model_id,quantization_config=quantization_config,
                                                           torch_dtype=torch.float16,
                                                           cache_dir = cache_dir,
-                                                           use_auth_token=hf_token)
+                                                          use_auth_token=hf_token)
     tokenizer = AutoTokenizer.from_pretrained(model_id,cache_dir=cache_dir,use_auth_token=hf_token)
     processor = AutoProcessor.from_pretrained(model_id,cache_dir=cache_dir,use_auth_token=hf_token)
     processor.tokenizer = tokenizer
