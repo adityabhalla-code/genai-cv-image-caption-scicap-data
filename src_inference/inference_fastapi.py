@@ -11,7 +11,18 @@ import io
 import torch
 import os
 
+def load_model(model_id,cache_dir):
+    quantization_config = BitsAndBytesConfig(load_in_4bit=True,)
+    model = LlavaForConditionalGeneration.from_pretrained(model_id,quantization_config=quantization_config,
+                                                      torch_dtype=torch.float16,
+                                                      cache_dir = cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(model_id,cache_dir=cache_dir)
+    processor = AutoProcessor.from_pretrained(model_id,cache_dir=cache_dir)
+    processor.tokenizer = tokenizer
+    log.info("Model loaded successfully!")
+    return model , processor
 
+    
 
 # FastAPI app initialization
 app = FastAPI(title='SCICAP', description='scientific image captioning', version='0.0.1')
@@ -21,19 +32,14 @@ app = FastAPI(title='SCICAP', description='scientific image captioning', version
 cache_dir = os.getenv('CACHE_DIR', os.path.expanduser('~/.cache/huggingface/hub'))
 log.info(f"cache_dir:{cache_dir}")
 hf_token = os.getenv('HF_TOKEN')
-tuned_model_id = "bhalladitya/llva-1.5-7b-scicap"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 log.info(f"device:{device}")
-quantization_config = BitsAndBytesConfig(load_in_4bit=True,)
-model = LlavaForConditionalGeneration.from_pretrained(tuned_model_id,quantization_config=quantization_config,
-                                                      torch_dtype=torch.float16,
-                                                      cache_dir = cache_dir)
-tokenizer = AutoTokenizer.from_pretrained(tuned_model_id,cache_dir=cache_dir)
-processor = AutoProcessor.from_pretrained(tuned_model_id,cache_dir=cache_dir)
-processor.tokenizer = tokenizer
-log.info("Tuned Model loaded successfully!")
 
+tuned_model_id = "bhalladitya/llva-1.5-7b-scicap"
+tuned_model , tuned_processor = load_model(tuned_model_id,cache_dir)
 
+model_id = "llava-hf/llava-1.5-7b-hf"
+model , processor = load_model(model_id,cache_dir)
 
 
 
@@ -44,6 +50,45 @@ async def read_root():
 
 
 @app.post("/predict")
+async def predict(prompt: str = Form(...), file: UploadFile = File(...)):
+    try:
+        log.info("Received prediction request")
+        image_id = file.filename
+        log.info(f"Received image_id:{image_id}")
+        image = Image.open(io.BytesIO(await file.read())).convert("RGB")
+        log.info(f"User prompt: {prompt}")
+
+        print("---"*10)
+        print(f"USER prompt:{prompt}")
+        print("---"*10)
+        prompt_text = f"A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. USER: <image>\{prompt}\nASSISTANT:"
+        print("PROMPT TEXT","---"*10)
+        print(prompt_text)
+        inputs = processor(images=image, text=prompt_text, return_tensors="pt").to("cuda", torch.float16)
+        output = tuned_model.generate(**inputs, max_new_tokens=200, do_sample=False)
+        prediction = tuned_processor.decode(output[0][2:], skip_special_tokens=True)
+        assistant_response = prediction.split("ASSISTANT:")[-1].strip()
+        original_caption = get_original_caption(image_id)
+        belu_score = calculate_bleu(original_caption,assistant_response)
+        output = {
+                "caption": assistant_response,
+                "user_prompt": prompt,
+                "original_caption":original_caption,
+                "belu_score":belu_score
+        }
+        
+        log.info(f"caption: {assistant_response}")
+        log.info(f"original_caption:{original_caption}")
+        log.info(f"belu_score:{belu_score}")
+        log.info(f"Prediction successful")
+        return JSONResponse(content=output)
+    except Exception as e:
+        log.error(f"Prediction error: {str(e)}", exc_info=True)
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+
+@app.post("/predict/llava")
 async def predict(prompt: str = Form(...), file: UploadFile = File(...)):
     try:
         log.info("Received prediction request")
