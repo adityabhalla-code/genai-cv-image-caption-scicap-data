@@ -1,4 +1,4 @@
-name: Build, Push to ECR
+name: model_deploy_ci
 
 on:
 #  push:
