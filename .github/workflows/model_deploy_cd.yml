@@ -1,0 +1,39 @@
+name: Build, Push to ECR, and Deploy to EC2
+
+on:
+#  push:
+#    branches: [ main ]  # Trigger the workflow on push to main branch
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy to EC2
+      env:
+        PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        HOST: ${{ secrets.EC2_HOST }}
+        USER: ${{ secrets.EC2_USER }}
+      run: |
+        echo "$PRIVATE_KEY" > private_key && chmod 600 private_key
+        ssh -o StrictHostKeyChecking=no -i private_key ${USER}@${HOST} '
+          # Login to ECR
+          aws ecr get-login-password --region your-aws-region | docker login --username AWS --password-stdin your-aws-account-id.dkr.ecr.your-aws-region.amazonaws.com
+          
+          # Pull the latest image
+          docker pull your-aws-account-id.dkr.ecr.your-aws-region.amazonaws.com/your-ecr-repo-name:${{ github.sha }}
+          
+          # Stop the existing container (if any)
+          docker stop scicap-deployment || true
+          docker rm scicap-deployment || true
+          
+          # Run the new container
+          docker run -d --name scicap-deployment \
+            --gpus all \
+            -p 8000:8000 \
+            -e HF_TOKEN=${{ secrets.HF_TOKEN }} \
+            -v /path/on/ec2/for/huggingface/cache:/.cache/huggingface/hub \
+            -v /path/on/ec2/for/logs:/app/logs \
+            your-aws-account-id.dkr.ecr.your-aws-region.amazonaws.com/your-ecr-repo-name:${{ github.sha }}
+        '
