@@ -9,7 +9,7 @@ on:
 jobs:
 
   build-and-push:
-    needs: download-model
+
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
