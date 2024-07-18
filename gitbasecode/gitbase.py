@@ -9,6 +9,7 @@ from peft import LoraConfig, TaskType, get_peft_model
 
 CHECKPOINT = "microsoft/git-base"
 model_name = "git-base-trained"
+TRAINED_CHECKPOINT = "git-base-trained-scicap"
 
 def load_model_pretrained() -> AutoProcessor:
     processor = AutoProcessor.from_pretrained(CHECKPOINT)
@@ -26,19 +27,20 @@ def transform_batch(batch: Dataset):
 
     imagesarr = []
     captionsarr = []
-    tokens_from_captions = ""
-    for file_name, caption, tokens in zip(batch["FileName"], batch["Caption"], batch["tokens"]):  # Iterate over file names and captions
+    #tokens_from_captions = ""
+    #for file_name, caption, tokens in zip(batch["FileName"], batch["Caption"], batch["tokens"]):  # Iterate over file names and captions
+    for file_name, caption in zip(batch["FileName"], batch["Caption"]):  # Iterate over file names and captions
         # Assuming file_name is a valid path or a file-like object
         image = Image.open(file_name)
         imagesarr.append(image)
         captionsarr.append(caption)
-        tokens_from_captions = tokens_from_captions.join(" ").join(tokens)  # Join list of tokens into a single strin
+        #tokens_from_captions = tokens_from_captions.join(" ").join(tokens)  # Join list of tokens into a single strin
 
     mu_rgb = get_image_mean(batch)
     std_rgb = get_image_stddev(batch)
     imgProcessor.preprocess(images=imagesarr,image_mean=mu_rgb, image_std=std_rgb)
     # Tokenize the input text
-    txtTokenizer(tokens_from_captions, return_tensors="pt")
+    #txtTokenizer(tokens_from_captions, return_tensors="pt")
 
     inputs = processor(images=imagesarr, text=captionsarr, return_tensors="pt",padding=True, truncation=True)
     inputs.update({"labels": inputs["input_ids"]})
@@ -57,7 +59,8 @@ def transforms(batch: Dataset):
         print(f"vlue returned null for key {key}")
     return outputs  
 
-def compute_metrics(eval_pred, processor: AutoProcessor, compute_result):
+def compute_metrics(eval_pred, compute_result):
+    processor = load_model_pretrained()
     wer = load("wer")
     logits, labels = eval_pred
     predicted = logits.argmax(-1)
@@ -99,22 +102,21 @@ def defineTrainingArgs() -> TrainingArguments:
         load_best_model_at_end=True,
         batch_eval_metrics=True
     )
-    print(training_args)
+    #print(training_args)
     return training_args
 
 
-def dotrain(dataset_and_tokens_train, dataset_and_tokens_val):
+def dotrain(train_ds, val_ds):
     model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
-    #dataset_and_tokens_train[0].set_transform(transforms(dataset_and_tokens_train[0], load_model_pretrained()))
-    train_ds = dataset_and_tokens_train[0]
     train_ds.set_transform(transforms)
     print(f"type of train ds:{type(train_ds)}")
-    val_ds = dataset_and_tokens_val[0]
     val_ds.set_transform(transforms)
     print(f"type of val ds:{type(val_ds)}")
 
     modifyModel()
     args = defineTrainingArgs()
+    print(train_ds[:5])
+    print(val_ds[:5])
     trainer = Trainer(
         model=model,
         args=args,
@@ -123,7 +125,8 @@ def dotrain(dataset_and_tokens_train, dataset_and_tokens_val):
         compute_metrics=compute_metrics
     )
     trainer.train()
-    trainer.save_model(f"{model_name}-scicap")        
+    trainer.save_model(f"{model_name}-scicap")
+    #trainer.push_to_hub()
     
 def generateCaptionPretrained(image: Image) -> str:
     model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
@@ -138,18 +141,18 @@ def generateCaptionPretrained(image: Image) -> str:
     return generated_caption
 
 def generateCaption(image: Image) -> str:
-    model = AutoModelForCausalLM.from_pretrained("/content/git-base-trained-scicap/", _from_auto=True)
-    processor = AutoProcessor.from_pretrained("/content/git-base-trained-scicap") 
+    model = AutoModelForCausalLM.from_pretrained(TRAINED_CHECKPOINT, _from_auto=True)
+    processor = AutoProcessor.from_pretrained(TRAINED_CHECKPOINT) 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     inputs = processor(images=image, return_tensors="pt").to(device)
     pixel_values = inputs.pixel_values
     generated_ids = model.generate(pixel_values=pixel_values, max_length=50)
     generated_caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-    plotimage(image)
+    #plotimage(image)
     print(generated_caption)
     return generated_caption
 
-def plotimage(image: Image):
-    plt.imshow(image)
-    plt.show()
+#def plotimage(image: Image):
+    #plt.imshow(image)
+    #plt.show()

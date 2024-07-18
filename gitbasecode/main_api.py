@@ -1,18 +1,22 @@
 from data_manager import load_dataset, load_train, load_val
-from gitbase import load_model_pretrained, transforms, compute_metrics, defineTrainingArgs, dotrain, generateCaption
+from gitbase import load_model_pretrained, transforms, compute_metrics, defineTrainingArgs, dotrain, generateCaption, generateCaptionPretrained
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from PIL import Image
+from api import api_router
 
 
 app = FastAPI(
     title="Image captioning for scientfic images"
 )
 
-root_router = APIRouter()
+api_router = APIRouter()
+app.include_router(api_router)
 
-@root_router.get("/")
-def index(request: Request) -> Any:
+@app.get("/")
+def index(request: Request):
+    print("in index")
     """Basic HTML response."""
     body = (
         "<html>"
@@ -27,7 +31,7 @@ def index(request: Request) -> Any:
 
     return HTMLResponse(content=body)
 
-app.include_router(root_router)
+
 
 # Set all CORS enabled origins
 #if settings.BACKEND_CORS_ORIGINS:
@@ -50,15 +54,14 @@ def train():
     
 def infer():
     print("Start inference")
-    dataset_and_tokens_train = load_train()
-    dataset_and_tokens_val = load_val()
-    print(type(dataset_and_tokens_train[0]))
+    url = '/content/drive/MyDrive/Colab Notebooks/SciCap-No-Subfig-Img/test/2011.07019v1-Figure3-1.png'
+    image1 = Image.open(url)
+    generateCaptionPretrained(image1)
+    generateCaption(image1)
     
-    print(type(dataset_and_tokens_val))
-    dotrain(dataset_and_tokens_train, dataset_and_tokens_val)
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001) 
+    uvicorn.run(app, host="127.0.0.0", port=8004) 
 
     ## local host--> 127.0.0.0  
     ## host --> 0.0.0.0 allows all host
