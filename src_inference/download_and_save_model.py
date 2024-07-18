@@ -1,7 +1,8 @@
 from transformers import AutoTokenizer, AutoProcessor, LlavaForConditionalGeneration, BitsAndBytesConfig
-import os 
+import torch
+import os
 
-cache_dir  = '/home/ubuntu/model_cache'
+cache_dir  = '/home'
 hf_token = os.getenv('HF_TOKEN')
 model_id = "bhalladitya/llva-1.5-7b-scicap"
 

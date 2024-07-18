@@ -7,7 +7,9 @@ on:
 
 
 jobs:
+
   build-and-push:
+    needs: download-model
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -33,6 +35,5 @@ jobs:
         ECR_REPOSITORY: "scicap-deployment"
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build -f Dockerfile.deploy -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
