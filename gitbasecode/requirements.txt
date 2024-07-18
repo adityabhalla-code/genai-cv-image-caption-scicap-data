@@ -12,3 +12,5 @@ peft==0.11.1
 dvc
 dvc-s3
 openpyxl
+matplotlib
+jiwer
