@@ -50,7 +50,7 @@ RUN pip install --no-cache-dir -r requirements_model_deploy.txt
 COPY src_inference /app/src_inference
 COPY get_meta_data_from_s3.sh /get_meta_data_from_s3.sh
 RUN chmod +x /get_meta_data_from_s3.sh
-CMD ["/get_meta_data_from_s3.sh"]
+CMD ["./get_meta_data_from_s3.sh"]
 
 
 # Command to run your application
