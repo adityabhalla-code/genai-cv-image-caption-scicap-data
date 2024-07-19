@@ -72,11 +72,18 @@ def compute_metrics(eval_pred, compute_result):
 def modifyModel():
     model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
      
-    target_modules = ["q_proj", "v_proj"]  # Example target modules, adjust as needed
-    peft_config = LoraConfig(task_type=TaskType.FEATURE_EXTRACTION, inference_mode=False, r=8,
-                         lora_alpha=32, lora_dropout=0.1, target_modules=target_modules)
-    model = get_peft_model(model, peft_config)
-    model.print_trainable_parameters()
+    #target_modules = ["q_proj", "v_proj"]  # Example target modules, adjust as needed
+    
+    #target_modules = ["q_proj", "v_proj"]  # Example target modules, adjust as needed
+    #peft_config = LoraConfig(task_type=TaskType.FEATURE_EXTRACTION, inference_mode=False, r=8,
+                         #lora_alpha=32, lora_dropout=0.1, target_modules=target_modules)
+    #model = get_peft_model(model, peft_config)
+    lora_config = LoraConfig(
+        r=64,
+        lora_alpha=16,
+        target_modules="all-linear"
+    )
+    model = get_peft_model(model, lora_config)
     return model    
 
 def defineTrainingArgs() -> TrainingArguments:
@@ -105,18 +112,38 @@ def defineTrainingArgs() -> TrainingArguments:
     #print(training_args)
     return training_args
 
+def dotrainWOFineTuning(train_ds, val_ds):
+    model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
+    train_ds.set_transform(transforms)
+    #print(f"type of train ds:{type(train_ds)}")
+    val_ds.set_transform(transforms)
+    #print(f"type of val ds:{type(val_ds)}")
+
+    #modifyModel()
+    args = defineTrainingArgs()
+    #print(train_ds[:5])
+    #print(val_ds[:5])
+    trainer = Trainer(
+        model=model,
+        args=args,
+        train_dataset=train_ds,
+        eval_dataset=val_ds,
+        compute_metrics=compute_metrics
+    )
+    trainer.train()
+    trainer.save_model(f"{model_name}-wotuning-scicap")
 
 def dotrain(train_ds, val_ds):
     model = AutoModelForCausalLM.from_pretrained(CHECKPOINT)
     train_ds.set_transform(transforms)
-    print(f"type of train ds:{type(train_ds)}")
+    #print(f"type of train ds:{type(train_ds)}")
     val_ds.set_transform(transforms)
-    print(f"type of val ds:{type(val_ds)}")
+    #print(f"type of val ds:{type(val_ds)}")
 
     modifyModel()
     args = defineTrainingArgs()
-    print(train_ds[:5])
-    print(val_ds[:5])
+    #print(train_ds[:5])
+    #print(val_ds[:5])
     trainer = Trainer(
         model=model,
         args=args,

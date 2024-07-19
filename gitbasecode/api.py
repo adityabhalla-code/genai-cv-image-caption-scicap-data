@@ -11,13 +11,13 @@ from fastapi.encoders import jsonable_encoder
 api_router = APIRouter()
 
 
-@api_router.post("/train", status_code=200)
-async def train() -> Any:
+@api_router.get("/train", status_code=200)
+def train() -> Any:
    train()
    
 
-@api_router.post("/infer", status_code=200)
-async def infer() -> Any:
+@api_router.get("/infer", status_code=200)
+def infer() -> Any:
    infer()
    
    
